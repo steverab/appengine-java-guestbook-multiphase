@@ -20,14 +20,16 @@ package com.example.guestbook;
 import com.google.appengine.api.datastore.DatastoreService;
 import com.google.appengine.api.datastore.DatastoreServiceFactory;
 import com.google.appengine.api.datastore.Entity;
-import com.google.appengine.api.datastore.Key;
+import com.googlecode.objectify.Key;
 import com.google.appengine.api.datastore.KeyFactory;
 import com.google.appengine.api.users.User;
 import com.google.appengine.api.users.UserService;
 import com.google.appengine.api.users.UserServiceFactory;
+import com.example.guestbook.Guestbook;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.List;
 
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -58,6 +60,28 @@ public class SignGuestbookServlet extends HttpServlet {
       greeting = new Greeting(guestbookName, content, user.getUserId(), user.getEmail());
     } else {
       greeting = new Greeting(guestbookName, content);
+    }
+
+    // Create the correct Ancestor key
+    Key<Guestbook> theBook = Key.create(Guestbook.class, guestbookName);
+    // Run an ancestor query to ensure we see the most up-to-date
+    // view of the Greetings belonging to the selected Guestbook.
+
+    List<Greeting> greetings = ObjectifyService.ofy()
+            .load()
+            .type(Greeting.class)
+            .ancestor(theBook)
+            .order("date")
+            .list();
+
+    while (greetings.size() >= 5) {
+      ObjectifyService.ofy().delete().entity(greetings.get(0)).now();
+      greetings = ObjectifyService.ofy()
+              .load()
+              .type(Greeting.class)
+              .ancestor(theBook)
+              .order("date")
+              .list();
     }
 
     // Use Objectify to save the greeting and now() is used to make the call synchronously as we
